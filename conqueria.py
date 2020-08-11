@@ -27,12 +27,13 @@ class MapObject:
 		self.name = name
 		self.owner = owner		
 		self.isterrain = isterrain
+		self.level = 1
 		
 class City(MapObject):
 	def __init__(self, position, name, owner):
 		super().__init__(position, name, owner,0)
 		self.icon = owner.name[0].upper()
-	level = 1
+	
 	health = 200
 	dmg = 0
 	dmg_turn = 0
@@ -40,8 +41,8 @@ class City(MapObject):
 class Unit(MapObject):
 	def __init__(self, position, name, owner):
 		super().__init__(position, name.lower(), owner,0)
+		self.level = 0
 		self.icon = owner.name[0].lower()
-	level = 1
 	health = 100
 	dmg = 0
 	dmg_turn = 0
@@ -60,12 +61,12 @@ class Terrain(MapObject):
 class Mountain(Terrain):
 	def __init__(self, position):
 		super().__init__(position)
-		self.icon = "∆"
+		self.icon = "▲▲"
 		
 		
 		
 		
-c_Afghanistan = CivInfo("Afghanistan", "Kabul")	
+c_Afghanistan = CivInfo("Afghanistan", "Kabul")
 c_Bolivia = CivInfo("Bolivia","La Paz")	
 c_CzechRepublic = CivInfo("Czech Republic", "Prague")
 c_Denmark = CivInfo("Denmark", "Copenhagen")
@@ -81,25 +82,45 @@ c_Null = CivInfo("null", "null")
 c_ListAll = [c_Afghanistan, c_Bolivia, c_CzechRepublic, c_Denmark, c_Ecuador,
 c_France, c_Georgia, c_Honduras, c_India, c_Japan, c_Latvia]
 
-null_icon = "[ ]"
+m_width = 10
+m_height = 10
 
-# units per city
-default_unit_number = 2
-# cities per civ
-default_city_number = 4
-# civs per game
-c_Number = 2
-# terrain per game
-default_terrain_number = 10
-AI_HARD = 1
-
-# _ = nothing
-# m = city
-m_width = 20
-m_height = 5
 attack_power = 100
 attacker_advantage = 5
+
+# every level gained (or stolen) by units adds the following to damage:
+level_bonus_default = 10
 matrix = [[0] * m_width for i in range(m_height)]
+
+# units per city, max 4 (i guess if you let them spawn at the corners
+# the max would become 8)
+default_unit_number = 3
+
+# cities per civ, no max
+default_city_number = 3
+
+# civs per game, max 10. You can put more in the game if you want!
+c_Number = 4
+
+# Adjusts the amount of terrain (right now, just mountains)
+terrain_scale = 1
+default_terrain_number = int((m_width+m_height)/2)*terrain_scale
+
+# A value of 10 means cities spawn units 1 out of 10 turns
+# NB this is not per civ, this is per CITY. 
+# Overwhelming the map with units is just annoying,
+# especially as there is no overlapping allowed.
+unit_spawn_rarity = 40
+
+# I want this flag to mean that the AI never moves into another
+# unit's area of attack. Especially as the attacker advantage
+# is so high this will make the game exceedingly
+# difficult.
+AI_HARD = 1
+
+turns = 0
+turns_limit = (m_width*m_height)/2
+score_threshold = 10
 
 u_List = []	
 c_List = []
@@ -174,13 +195,11 @@ def foundcity(pos, civ, cityname="", hostile=0):
 			pos = temp_pos
 		else:
 			None
-	if cityname == "":
-		cityname = str(civ.name[0] + str(len(civ.cities_List)))
+	cityname = "city"
 	if hostile == 0:
-		print(civ.name+" has founded "+cityname+" at "+locstring(pos))
+		print(civ.name+" has founded a "+cityname+" at "+locstring(pos))
 	else:
-		print(civ.name+" has captured "+cityname+"'s city at "+locstring(pos)+"!")
-		cityname = str(civ.name[0] + str(len(civ.cities_List)))	
+		print(civ.name+" has captured a "+cityname+" at "+locstring(pos)+"!")
 		civ.cities_captured += 1
 	city = City(pos, cityname, civ)
 	civ.cities_List.append(city)	
@@ -196,14 +215,14 @@ def createterrain(pos, kind=0):
 		else:
 			None
 	if kind == 0:		
-		print("A mountain has formed at "+locstring(pos))
+		print("	A mountain has formed at "+locstring(pos))
 		newterrain = Mountain(pos)
 	
 	matrix[pos.y][pos.x] = newterrain
 	return newterrain
 	
 	
-def spawnunit(civ, city):
+def spawnunit(civ, city, random=0):
 	pos = city.position
 	spawned = 0
 	debugcounter=0
@@ -229,8 +248,8 @@ def spawnunit(civ, city):
 						print("	"+civ.name+" has trained a unit at "+locstring(unit)+".")
 		except IndexError as error:
 			None
-		if debugcounter == 100:
-			print("	"+civ.name+" forced to spawn into a wall. Unlucky.")
+		if debugcounter == 20:
+			print("	"+civ.name+" tried to train a unit but it wouldn't fit.")
 			spawned = 1
 			return 0
 	
@@ -273,22 +292,28 @@ def move(unit, direction,verbose=1,AI=0):
 					print(namestr(unit) +" moved to "+locstring(unit)+".")
 					return 0
 					
-				elif matrix[aim.y][aim.x].owner is not unit.owner:
-					combat(unit, matrix[aim.y][aim.x])
-					return 0	
-					
 				elif matrix[aim.y][aim.x].isterrain == 1:
 					# mountain
-					print("Unit walked into a mountain.")
+					print("	Unit at "+locstring(unit)+" tried to climb a mountain.")
+					return 1	
 
 				elif matrix[aim.y][aim.x].owner == unit.owner:
 					# friendly
-					print("You ran into a friendly.")
-				
+					print("	Unit at "+locstring(unit)+" ran into a friendly.")
+					return 1	
+					
+				elif matrix[aim.y][aim.x].owner is not unit.owner:
+					# enemy
+					combat(unit, matrix[aim.y][aim.x])
+					return 0	
+					
+			else:
+				print("	Unit at "+locstring(unit)+" tried to leave the AO.")
 				return 1
 				
 					# enemy
-						
+		except IndexError as error:
+			print("Not sure how you managed to get this error but well done.")
 				
 		
 
@@ -297,8 +322,9 @@ def geticon(obj):
 	
 def combat(red, blu):
 	random_seed = randint(0,attack_power)
+	level_bonus = red.level*level_bonus_default
 	red.dmg_turn = int(random_seed/attacker_advantage)
-	blu.dmg_turn = attack_power-random_seed
+	blu.dmg_turn = attack_power-random_seed + level_bonus
 	
 	if blu.__class__.__name__=="Unit":
 		print(namestr(red)+" attacks "+namestr(blu)+" at "+locstring(blu)+"!")
@@ -306,30 +332,36 @@ def combat(red, blu):
 		combatcity(red, blu)
 	
 	if random_seed > 50:
-		print("	The attack was unlucky!"+" ("+str(random_seed)+")")
+		print("	The attack was unlucky!"+" ("+str(100-random_seed)+")")
 	if 10 < random_seed <= 50:
-		print("	The attack succeeds!"+" ("+str(random_seed)+")")
+		print("	The attack succeeds!"+" ("+str(100-random_seed)+")")
 	if random_seed <= 10:
-		print("	A critical hit! The defenders are routed!"+" ("+str(random_seed)+")")	
+		print("	A critical hit! The defenders are routed!"+" ("+str(100-random_seed)+")")	
 		
 	bindex = 0	
 	belligerents = [red, blu]
 	for b in belligerents:
+		other = belligerents[abs(belligerents.index(b)-1)]
 		b.dmg += b.dmg_turn
 		print("	"+namestr(b) + " took "+str(b.dmg_turn)+" damage.")
-		if b.dmg >= b.health:
-			if b.__class__.__name__=="Unit":
+		other.level += 1
+		if b.__class__.__name__=="Unit":
+			if b.dmg >= b.health:
 				print("	"+namestr(b)+" has died from its wounds.")
 				saveloc = b.position
-				killunit(b)
-				other = belligerents[abs(belligerents.index(b)-1)]
+				killunit(b)		
 				other.owner.units_destroyed += 1
-				
-			if b.__class__.__name__=="City":
+				# This line makes stealing levels possible
+				# Can result in huge snowballs but that could be fun:
+				# other.level += b.level
+		if b.__class__.__name__=="City":
+			
+			if b.dmg >= b.health:
 				print("	"+namestr(b)+" has fallen.")
 				saveloc = b.position
 				killunit(b)
-				foundcity(saveloc, red.owner, blu.owner.name,1)
+				foundcity(saveloc, red.owner, b.name,1)
+				
 			
 			
 		else:
@@ -343,7 +375,7 @@ def combat(red, blu):
 def combatcity(unit, city):
 	unitname = namestr(unit)
 	cityname = city.name+" ["+str(city.health-city.dmg)+"]"
-	print(unitname+" attacks "+cityname+" at "+locstring(city)+"!")	
+	print(unitname+" attacks "+namestr(city)+" at "+locstring(city)+"!")	
 	return cityname
 	
 def namestr(obj):
@@ -384,12 +416,17 @@ def initmessage():
 	print("=================================================")
 	print("Hello. Welcome to Alex's War Game.")
 	print()
-	print("In this game, you can win by two conditions:")
-	print("Being the last to own cities, or the last to control armies.")
+	print("In this game, you can win by four conditions:")
+	print("Controlling every city (domination),")
+	print("Being the last to control units (elimination),")
+	print("Having "+str(score_threshold)+" times your closest competitor's score,")
+	print("Or having the highest score at the end of "+str(turns_limit)+" turns.")
 	print("Move using WASD: w, a, s, d, and enter.")
 	print("To skip a unit's turn, use space or enter by itself.")
 	print("Capital letters are cities, and lower case letters are units.")
 	print("An exclamation point signifies the active unit.")
+	print("Cities have the chance to spawn additional units.")
+	print("Units will level up as they fight and do more damage.")
 	print("Attackers have a significant advantage, so be cautious.")
 	print("Consider your movements carefully and use diagonals to your advantage.")
 	print("But, of course, you already knew that... General.")
@@ -404,26 +441,37 @@ def printmap(unit, debug=""):
 	while p < m_width:
 		p += 1
 		if p < 10:
-			print(" "+str(p)+" ", end="")
+			print(" "+str(p)+"  ", end="")
 		elif p < 100:
-			print(" "+str(p), end="")
+			print(" "+str(p)+" ", end="")
 	print()
 	p = 0
 	while p < m_width:
 		p += 1
-		print(" | ", end="")
-	print()	
+		print(" |  ", end="")
+	print()
+	print()
 	h = 0
 	for a in matrix:
 		h += 1
 		for b in a:
 			if b==0:
-				print("   ", end="")
+				print("    ", end="")
+			elif b.isterrain:
+				print(" "+str(b.icon)+" ",end="")
+			elif b.__class__.__name__=="City":
+				print(" "+str(b.icon)+"⚑ ",end="")
 			elif b==unit:
-				print("[!]", end="")
-			else: 	
-				print(" "+b.icon+" ", end ="")
+				print("🁢🁢🁢🁢", end="")
+			else:
+				if b.level == 0:
+					print(" "+b.icon+"  ", end ="")
+				elif b.level < 10:
+					print(" "+b.icon+str(b.level)+" ", end ="")
+				else:
+					print(" "+b.icon+str(b.level)+"", end ="")
 		print("--"+str(h))
+		print()
 	print()	
 	
 def requestinput(unit, prompt):
@@ -433,6 +481,9 @@ def requestinput(unit, prompt):
 	if i in debug_Words:
 		debug(i)
 		return i
+	if i == "":
+		return " "
+		
 	else:
 		return i
 	
@@ -445,9 +496,21 @@ def AI():
 		else:
 			print()
 			print("--------------------"+civ.name+"--------------------")
+			for city in civ.cities_List:
+				if randint(0, unit_spawn_rarity-1) == 0:
+					spawnunit(civ, city, 1)
 			for unit in civ.units_List:
-				move(unit, AIaim(unit),1,1)
-					
+				# For each unit, aims itself at the closest enemy.
+				# If this move is blocked, it picks a new random direction.
+				# If 10 consecutive moves fail, it is deemed to be stuck and rests.
+				ai_aim = AIaim(unit)
+				whoopsie_counter = 0
+				while move(unit, ai_aim,1,1):
+					ai_aim = move_Words[randint(0,len(move_Words)-2)]
+					whoopsie_counter += 1
+					print("AI did a whoopsie.")
+					if whoopsie_counter > 10:
+						ai_aim = move_Words[4]
 	return 0
 	
 def AIaim(red):
@@ -503,28 +566,40 @@ def get_target(red, blu):
 def playerloop():
 	# Cycles through player's units and cities and asks them to perform an
 	# action.
+	print()
 	for civ in c_List:
 		print(civ.name+"------ "+str(calculate_score(civ)[0])+"/"+str(calculate_score(civ)[1]))
+		for unit in civ.units_List:
+			print(" >   "+locstring(unit)+" - "+str(unit.health - unit.dmg)+" - "+unit.name)
+		for city in civ.cities_List:
+			print(" >>> "+locstring(city)+" - "+str(city.health - city.dmg)+" - "+city.name)
 	print()	
+	if turns == 1:
+		initmessage()
+	print("Turn "+str(turns)+"/"+str(int(turns_limit)))
+	print("\nThe sun rises.\n")
 	print("--------------------"+c_Player.name+"--------------------")
 	if len(c_Player.units_List)==0:
-		i = requestinput(None,"You have no more units. Exit with the keyword \"k\".\nOne more turn? Use the keyword \"t\".")
+		i = requestinput(None,"You have no more units. Press enter to wait for a new spawn.")
 		if i == "t":
 			return 0
+	for city in c_Player.cities_List:
+		if randint(0, unit_spawn_rarity-1) == 0:
+			spawnunit(c_Player, city)	
+		
 	for unit in c_Player.units_List:
 		print()
-		i = requestinput(unit, namestr(unit) + " at " + locstring(unit) + " needs an order.").lower()
+		i = requestinput(unit, namestr(unit)+" {"+str(unit.level)+"} "+locstring(unit) + " needs an order.").lower()
 		if i == "t":
 			return 0
-		if i == "":
-			i = " "
 		while move(unit, i):
-			return 0
+			i = requestinput(unit,"Try again.")
 	return 0
 	
 def mainloop():	
 	# does a heckin turn. then announces it
-	print("\nThe sun rises.\n")
+	global turns
+	turns += 1
 	playerloop()
 	if (matrixscan()):
 
@@ -571,6 +646,21 @@ def matrixscan(debug=0):
 			c_List.remove(civ)
 		elif civ.score > highscore.score:
 			highscore = civ
+			
+	score_list = []
+	for civ in c_List:
+		score_list.append(civ.score)
+	score_list.sort(reverse = True)
+	if score_list[0] >= score_threshold*score_list[1]*100:
+		winner = highscore
+		game_over = 1
+		congratulations(winner, "score")
+		return 1
+	elif turns > turns_limit:
+		winner = highscore
+		game_over = 1
+		congratulations(winner, "time")
+		return 1
 	
 	unit_count = 0
 	for civ in c_List:
@@ -584,7 +674,6 @@ def matrixscan(debug=0):
 		else:
 			if civ in landed_players:
 				landed_players.remove(civ)
-		
 		
 	if len(landed_players) == 1:
 		try:
@@ -601,8 +690,9 @@ def matrixscan(debug=0):
 		except IndexError as error:
 			winner = highscore
 		game_over = 1
-		congratulations(winner, "endurance")
+		congratulations(winner, "elimination")
 		return 1
+			
 		
 def congratulations(winner, reason):
 	print()
@@ -611,6 +701,8 @@ def congratulations(winner, reason):
 	print("--------------------=== Hope you enjoyed! ===--------------------")
 	print()
 	print(str(winner.name)+" wins by "+reason+".")	
+	if winner is not c_Player:
+		print("Even the best leaders make mistakes sometimes.")
 	print(winner.name+"'s total score was "+str(winner.score)+".")
 	print(winner.name+" had "+str(len(winner.units_List))+" units remaining.")
 	print(winner.name+" had "+str(len(winner.cities_List))+" cities remaining.")
@@ -627,7 +719,6 @@ df = "Debug flag======================="
 								
 def mainfunc():
 	setup()
-	initmessage()
 	while mainloop() == 0:
 		None
 	return 0
