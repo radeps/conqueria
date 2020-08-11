@@ -2,6 +2,21 @@
 
 import sys
 from random import randint
+# From stackoverflow.
+class textcolor:
+   PURPLE = '\033[95m'
+   CYAN = '\033[96m'
+   DARKCYAN = '\033[36m'
+   BLUE = '\033[94m'
+   GREEN = '\033[92m'
+   YELLOW = '\033[93m'
+   RED = '\033[91m'
+   BOLD = '\033[1m'
+   UNDERLINE = '\033[4m'
+   END = '\033[0m'
+   
+def teamcolor(civ, string):
+	return str(civ.info.color + string + textcolor.END)
 
 								## ASSIGNMENTS ##
 
@@ -17,9 +32,10 @@ class Civ:
 		self.cities_captured = 0
 
 class CivInfo:
-	def __init__(self, name, capital_Name):
+	def __init__(self, name, capital_Name, color):
 		self.name = name
 		self.capital_Name = capital_Name
+		self.color = color
 		
 class MapObject:
 	def __init__(self, position, name, owner, isterrain):
@@ -32,7 +48,7 @@ class MapObject:
 class City(MapObject):
 	def __init__(self, position, name, owner):
 		super().__init__(position, name, owner,0)
-		self.icon = owner.name[0].upper()
+		self.icon = teamcolor(owner, owner.name[0].upper())
 	
 	health = 200
 	dmg = 0
@@ -42,7 +58,7 @@ class Unit(MapObject):
 	def __init__(self, position, name, owner):
 		super().__init__(position, name.lower(), owner,0)
 		self.level = 0
-		self.icon = owner.name[0].lower()
+		self.icon = teamcolor(owner, owner.name[0].lower())
 	health = 100
 	dmg = 0
 	dmg_turn = 0
@@ -63,44 +79,43 @@ class Mountain(Terrain):
 		super().__init__(position)
 		self.icon = "▲▲"
 		
+
 		
 		
-		
-c_Afghanistan = CivInfo("Afghanistan", "Kabul")
-c_Bolivia = CivInfo("Bolivia","La Paz")	
-c_CzechRepublic = CivInfo("Czech Republic", "Prague")
-c_Denmark = CivInfo("Denmark", "Copenhagen")
-c_Ecuador = CivInfo("Ecuador", "Quito")
-c_France = CivInfo("France", "Paris")
-c_Georgia = CivInfo("Georgia", "Tbilisi")
-c_Honduras = CivInfo("Honduras", "Tegucigalpa")
-c_India = CivInfo("India","New Delhi")
-c_Japan = CivInfo("Japan", "Tokyo")
-c_Latvia = CivInfo("Latvia", "Riga")
-c_Null = CivInfo("null", "null")
+# Some civilizations with their capital. The capital is never really named
+# in the game, so this is just for fun. 
+c_Afghanistan = CivInfo("Afghanistan", "Kabul", '\033[95m')
+c_Bolivia = CivInfo("Bolivia","La Paz", '\033[96m')	
+c_CzechRepublic = CivInfo("Czech Republic", "Prague", '\033[36m')
+c_Denmark = CivInfo("Denmark", "Copenhagen", '\033[94m')
+c_Ecuador = CivInfo("Ecuador", "Quito", '\033[91m')
+c_France = CivInfo("France", "Paris", '\033[92m')
+c_Null = CivInfo("null", "null", '')
 
 c_ListAll = [c_Afghanistan, c_Bolivia, c_CzechRepublic, c_Denmark, c_Ecuador,
-c_France, c_Georgia, c_Honduras, c_India, c_Japan, c_Latvia]
+c_France]
 
 m_width = 10
 m_height = 10
 
+# default attack power and attack coefficient per level.
 attack_power = 100
 attacker_advantage = 5
 
 # every level gained (or stolen) by units adds the following to damage:
 level_bonus_default = 10
+
 matrix = [[0] * m_width for i in range(m_height)]
 
 # units per city, max 4 (i guess if you let them spawn at the corners
-# the max would become 8)
+# the max would become 8 - but that isn't written in the spawn function)
 default_unit_number = 3
 
 # cities per civ, no max
 default_city_number = 3
 
-# civs per game, max 10. You can put more in the game if you want!
-c_Number = 4
+# civs per game, max 10, player-inclusive.
+c_Number = 3
 
 # Adjusts the amount of terrain (right now, just mountains)
 terrain_scale = 1
@@ -462,7 +477,7 @@ def printmap(unit, debug=""):
 			elif b.__class__.__name__=="City":
 				print(" "+str(b.icon)+"⚑ ",end="")
 			elif b==unit:
-				print("🁢🁢🁢🁢", end="")
+				print(teamcolor(c_Player, "🁢🁢🁢🁢"), end="")
 			else:
 				if b.level == 0:
 					print(" "+b.icon+"  ", end ="")
